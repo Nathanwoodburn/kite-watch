@@ -1,4 +1,4 @@
-from functools import cache
+from functools import cache, lru_cache
 import json
 from flask import (
     Flask,
@@ -15,16 +15,86 @@ import json
 import requests
 from datetime import datetime
 import dotenv
+import db  # Import our new db module
+import re
 
 dotenv.load_dotenv()
 
 app = Flask(__name__)
+
+# Use PurgoMalum API for profanity checking
+PROFANITY_API_URL = "https://vector.profanity.dev"
+
+
+@lru_cache(maxsize=1000)  # Cache results to avoid repeated API calls
+def contains_profanity(text):
+    """Check if text contains profanity using the PurgoMalum API"""
+    if not text:
+        return False
+
+    try:
+        # Call the API
+        response = requests.post(
+            f"{PROFANITY_API_URL}",
+            json={"message": text},
+            timeout=5  # Set a timeout for the request
+        )
+
+        # Check if the API returned success
+        if response.status_code == 200:
+            data = response.json()
+            # Check if the response indicates profanity
+            return data.get("isProfanity", False)
+
+        # Fall back to a basic check if API fails
+        print(f"Warning: Profanity API returned status code {response.status_code}")
+        return False
+    except requests.RequestException as e:
+        # Handle timeouts, connection errors, etc.
+        print(f"Warning: Profanity API request failed: {e}")
+        return False
+
+
+def is_json_safe(text):
+    """Ensure text is safe for JSON serialization"""
+    if not text:
+        return True
+
+    # Check for control characters that could break JSON
+    if re.search(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]", text):
+        return False
+
+    # Check if text would be valid in JSON (simplified)
+    try:
+        # Test serialize to ensure valid JSON characters
+        json.dumps(text)
+        return True
+    except:
+        return False
+
+
+def sanitize_text_input(text):
+    """Sanitize text for JSON storage"""
+    if not text:
+        return ""
+
+    # Replace problematic characters for JSON
+    # This is a simplified approach - more complex sanitization could be added
+    text = text.replace("\0", "").strip()
+
+    # Limit length to prevent abuse
+    max_length = 500
+    if len(text) > max_length:
+        text = text[:max_length]
+
+    return text
 
 
 def find(name, path):
     for root, dirs, files in os.walk(path):
         if name in files:
             return os.path.join(root, name)
+
 
 # Assets routes
 @app.route("/assets/<path:path>")
@@ -66,8 +136,6 @@ def wellknown(path):
     return make_response(
         req.content, 200, {"Content-Type": req.headers["Content-Type"]}
     )
-
-
 # endregion
 
 
@@ -76,6 +144,61 @@ def wellknown(path):
 def index():
     return render_template("index.html")
 
+# Kite Watch API Routes
+@app.route("/api/locations", methods=["GET"])
+def get_locations():
+    locations = db.load_locations()
+    return jsonify(locations)
+
+@app.route("/api/locations", methods=["POST"])
+def add_location():
+    data = request.json
+    if not data or "name" not in data:
+        return jsonify({"error": "Name is required"}), 400
+    
+    name = data.get("name")
+    description = data.get("description", "")
+    rating = data.get("rating")
+
+    # Validate required fields
+    if len(name.strip()) < 5:
+        return jsonify({"error": "Location name must be at least 5 characters long"}), 400
+    if len(name.strip()) > 100:
+        return jsonify({"error": "Location name is too long (max 100 characters)"}), 400
+    if len(description.strip()) > 2000:
+        return jsonify({"error": "Notes are too long (max 2000 characters)"}), 400
+    if not name.strip():
+        return jsonify({"error": "Location name cannot be empty"}), 400
+    
+    
+    # Check for profanity
+    if contains_profanity(name):
+        return jsonify({"error": "Location name contains inappropriate language"}), 400
+    
+    if contains_profanity(description):
+        return jsonify({"error": "Notes contain inappropriate language"}), 400
+    
+    # Validate for JSON safety
+    if not is_json_safe(name) or not is_json_safe(description):
+        return jsonify({"error": "Input contains invalid characters"}), 400
+    
+    # Sanitize inputs
+    name = sanitize_text_input(name)
+    description = sanitize_text_input(description)
+    
+    # Validate rating
+    if rating is not None:
+        try:
+            rating = int(rating)
+            if not (1 <= rating <= 5):
+                return jsonify({"error": "Rating must be between 1 and 5"}), 400
+        except ValueError:
+            return jsonify({"error": "Rating must be a number"}), 400
+    else:
+        return jsonify({"error": "Rating is required"}), 400
+    
+    location = db.save_location(name, description, rating)
+    return jsonify(location), 201
 
 @app.route("/<path:path>")
 def catch_all(path: str):
@@ -97,8 +220,6 @@ def catch_all(path: str):
             return send_file(filename)
 
     return render_template("404.html"), 404
-
-
 # endregion
 
 
@@ -107,8 +228,7 @@ def catch_all(path: str):
 @app.errorhandler(404)
 def not_found(e):
     return render_template("404.html"), 404
-
-
 # endregion
+
 if __name__ == "__main__":
     app.run(debug=True, port=5000, host="0.0.0.0")

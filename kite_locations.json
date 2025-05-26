@@ -1,0 +1,37 @@
+[
+  {
+    "name": "Arboretum",
+    "description": "Lots of wind",
+    "date_added": "2025-05-26T11:56:29.508930"
+  },
+  {
+    "name": "Park",
+    "description": "Still but still works",
+    "rating": 3,
+    "date_added": "2025-05-26T12:02:15.338125"
+  },
+  {
+    "name": "The Lake",
+    "description": "",
+    "rating": 5,
+    "date_added": "2025-05-26T12:02:42.853429"
+  },
+  {
+    "name": "Test",
+    "description": "Test",
+    "rating": 3,
+    "date_added": "2025-05-26T12:16:19.288452"
+  },
+  {
+    "name": "Test",
+    "description": "",
+    "rating": 3,
+    "date_added": "2025-05-26T12:18:16.435249"
+  },
+  {
+    "name": " ",
+    "description": "Hello",
+    "rating": 3,
+    "date_added": "2025-05-26T12:18:29.691415"
+  }
+]
