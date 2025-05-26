@@ -13,7 +13,7 @@ from flask import (
 import os
 import json
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 import dotenv
 import db  # Import our new db module
 import re
@@ -147,43 +147,57 @@ def index():
 # Kite Watch API Routes
 @app.route("/api/locations", methods=["GET"])
 def get_locations():
-    locations = db.load_locations()
-    return jsonify(locations)
+    # Get all locations from DB
+    all_locations = db.load_locations()
+    
+    # Check if we should filter by time (last 48 hours)
+    cutoff_time = datetime.now() - timedelta(hours=48)
+    
+    # Filter locations by time
+    recent_locations = [
+        loc for loc in all_locations 
+        if datetime.fromisoformat(loc["date_added"]) > cutoff_time
+    ]
+    
+    return jsonify(recent_locations)
 
 @app.route("/api/locations", methods=["POST"])
 def add_location():
     data = request.json
-    if not data or "name" not in data:
-        return jsonify({"error": "Name is required"}), 400
+    if not data:
+        return jsonify({"error": "Invalid request data"}), 400
     
-    name = data.get("name")
+    latitude = data.get("latitude")
+    longitude = data.get("longitude")
     description = data.get("description", "")
     rating = data.get("rating")
 
     # Validate required fields
-    if len(name.strip()) < 5:
-        return jsonify({"error": "Location name must be at least 5 characters long"}), 400
-    if len(name.strip()) > 100:
-        return jsonify({"error": "Location name is too long (max 100 characters)"}), 400
+    if latitude is None or longitude is None:
+        return jsonify({"error": "Latitude and longitude are required"}), 400
+    
+    try:
+        latitude = float(latitude)
+        longitude = float(longitude)
+    except (ValueError, TypeError):
+        return jsonify({"error": "Latitude and longitude must be valid numbers"}), 400
+    
+    # Validate coordinate ranges
+    if not (-90 <= latitude <= 90) or not (-180 <= longitude <= 180):
+        return jsonify({"error": "Invalid coordinate values"}), 400
+        
     if len(description.strip()) > 2000:
         return jsonify({"error": "Notes are too long (max 2000 characters)"}), 400
-    if not name.strip():
-        return jsonify({"error": "Location name cannot be empty"}), 400
-    
     
     # Check for profanity
-    if contains_profanity(name):
-        return jsonify({"error": "Location name contains inappropriate language"}), 400
-    
     if contains_profanity(description):
         return jsonify({"error": "Notes contain inappropriate language"}), 400
     
     # Validate for JSON safety
-    if not is_json_safe(name) or not is_json_safe(description):
+    if not is_json_safe(description):
         return jsonify({"error": "Input contains invalid characters"}), 400
     
     # Sanitize inputs
-    name = sanitize_text_input(name)
     description = sanitize_text_input(description)
     
     # Validate rating
@@ -197,7 +211,8 @@ def add_location():
     else:
         return jsonify({"error": "Rating is required"}), 400
     
-    location = db.save_location(name, description, rating)
+    # Save to database
+    location = db.save_location(latitude, longitude, description, rating)
     return jsonify(location), 201
 
 @app.route("/<path:path>")

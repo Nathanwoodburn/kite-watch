@@ -7,6 +7,12 @@
     <title>Kite Watch</title>
     <link rel="icon" href="/assets/img/favicon.png" type="image/png">
     <link rel="stylesheet" href="/assets/css/index.css">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+     crossorigin=""/>
+    <!-- Leaflet JavaScript -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+     crossorigin=""></script>
 </head>
 
 <body>
@@ -19,10 +25,17 @@
         <div class="card">
             <h2>Add a Kite Flying Location</h2>
             <div id="notification" class="notification hidden"></div>
-            <form id="location-form">
+            <form id="location-form" novalidate>
                 <div class="form-group">
-                    <label for="location-name">Location Name *</label>
-                    <input type="text" id="location-name" required placeholder="Arboretum, Weston Park, etc.">
+                    <label>Select Your Location</label>
+                    <div id="input-map-container"></div>
+                    <div class="location-controls">
+                        <!-- Using hidden input type instead of visually hiding regular inputs -->
+                        <input type="hidden" id="location-lat" name="location-lat">
+                        <input type="hidden" id="location-lng" name="location-lng">
+                        <button type="button" id="get-location-btn">Get My Location</button>
+                        <p class="location-help">Click on the map or use the button above to set your location</p>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label for="location-description">Notes</label>
@@ -40,7 +53,8 @@
         </div>
 
         <div class="card">
-            <h2>Great Places to Fly Kites</h2>
+            <h2>Great Places to Fly Kites in Canberra</h2>
+            <div id="map-container"></div>
             <div id="locations-list">
                 <p class="loading">Loading locations...</p>
             </div>
@@ -54,27 +68,217 @@
     </footer>
 
     <script>
+        // Global map variable
+        let map;
+        let inputMap; // New map for input section
+        let markers = [];
+        let locationMarker; // Marker for the currently selected location
+        
+        // Canberra coordinates - defined at the top level for reuse
+        const CANBERRA_LAT = -35.2809;
+        const CANBERRA_LNG = 149.1300;
+        const MAX_DISTANCE_KM = 50; // Maximum distance from Canberra allowed (in kilometers)
+        
+        // Calculate distance between two points using the Haversine formula (in kilometers)
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; // Earth's radius in kilometers
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = 
+                Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return R * c;
+        }
+        
+        // Check if a location is within the allowed distance from Canberra
+        function isWithinCanberraRange(lat, lng) {
+            const distance = calculateDistance(CANBERRA_LAT, CANBERRA_LNG, lat, lng);
+            return distance <= MAX_DISTANCE_KM;
+        }
+        
         // Load locations when the page loads
         document.addEventListener('DOMContentLoaded', () => {
-            loadLocations();
+            // Make sure Leaflet is fully loaded before initializing the map
+            if (typeof L !== 'undefined') {
+                // Initialize map centered on Canberra
+                initMap();
+                
+                // Load kite flying locations
+                loadLocations();
+                
+                // Automatically get user's location on page load
+                getUserLocation();
+            } else {
+                console.error("Leaflet library not loaded. Attempting to retry in 500ms.");
+                // Try again after a short delay
+                setTimeout(() => {
+                    if (typeof L !== 'undefined') {
+                        initMap();
+                        loadLocations();
+                        getUserLocation();
+                    } else {
+                        showNotification("Failed to load map. Please refresh the page.", "error");
+                    }
+                }, 500);
+            }
+            
+            // Handle get location button
+            document.getElementById('get-location-btn').addEventListener('click', getUserLocation);
             
             // Handle form submission
             document.getElementById('location-form').addEventListener('submit', (e) => {
                 e.preventDefault();
                 
-                const name = document.getElementById('location-name').value;
+                const lat = parseFloat(document.getElementById('location-lat').value);
+                const lng = parseFloat(document.getElementById('location-lng').value);
                 const description = document.getElementById('location-description').value;
                 const rating = parseInt(document.getElementById('rating').value);
                 
-                if (!name) {
-                    showNotification('Please enter a location name', 'error');
+                if (isNaN(lat) || isNaN(lng)) {
+                    showNotification('Please provide valid coordinates', 'error');
+                    return;
+                }
+                
+                if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+                    showNotification('Please provide valid coordinates within range', 'error');
+                    return;
+                }
+                
+                // Check if location is within Canberra range
+                if (!isWithinCanberraRange(lat, lng)) {
+                    showNotification(`Location must be within ${MAX_DISTANCE_KM}km of Canberra`, 'error');
                     return;
                 }
                 
                 // Submit the location
-                submitLocation(name, description, rating);
+                submitLocation(lat, lng, description, rating);
             });
         });
+        
+        // Initialize the map
+        function initMap() {
+            // Use the global Canberra coordinates
+            map = L.map('map-container').setView([CANBERRA_LAT, CANBERRA_LNG], 12);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+
+            // Initialize the input map
+            inputMap = L.map('input-map-container').setView([CANBERRA_LAT, CANBERRA_LNG], 12);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(inputMap);
+            
+            // Draw a 50km radius circle around Canberra to visualize the allowed area
+            const canberraCircle = L.circle([CANBERRA_LAT, CANBERRA_LNG], {
+                color: 'blue',
+                fillColor: '#3388ff',
+                fillOpacity: 0.1,
+                radius: MAX_DISTANCE_KM * 1000 // Convert to meters
+            }).addTo(map);
+
+            // Add the same circle to the input map
+            const inputCanberraCircle = L.circle([CANBERRA_LAT, CANBERRA_LNG], {
+                color: 'blue',
+                fillColor: '#3388ff',
+                fillOpacity: 0.1,
+                radius: MAX_DISTANCE_KM * 1000 // Convert to meters
+            }).addTo(inputMap);
+            
+            // Add click handler to the input map to update selected location
+            inputMap.on('click', function(e) {
+                updateSelectedLocation(e.latlng.lat, e.latlng.lng);
+            });
+        }
+        
+        // Function to set and update the selected location marker
+        function updateSelectedLocation(lat, lng) {
+            // Check if the location is within Canberra range
+            if (!isWithinCanberraRange(lat, lng)) {
+                showNotification(`Location must be within ${MAX_DISTANCE_KM}km of Canberra`, 'error');
+                return;
+            }
+            
+            // Update form inputs (hidden from user but needed for form submission)
+            document.getElementById('location-lat').value = lat.toFixed(6);
+            document.getElementById('location-lng').value = lng.toFixed(6);
+            
+            // Update or create the marker on the input map
+            if (locationMarker) {
+                locationMarker.setLatLng([lat, lng]);
+            } else {
+                // Create a draggable marker with a different icon than the location markers
+                const markerIcon = L.icon({
+                    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+                    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                    iconSize: [25, 41],
+                    iconAnchor: [12, 41],
+                    popupAnchor: [1, -34],
+                    shadowSize: [41, 41]
+                });
+                
+                locationMarker = L.marker([lat, lng], {
+                    icon: markerIcon,
+                    draggable: true
+                }).addTo(inputMap);
+                
+                // Update form when marker is dragged
+                locationMarker.on('dragend', function(e) {
+                    const position = locationMarker.getLatLng();
+                    updateSelectedLocation(position.lat, position.lng);
+                });
+            }
+
+            // Center the input map on the selected location
+            inputMap.setView([lat, lng], inputMap.getZoom());
+        }
+        
+        // Get user's current location
+        function getUserLocation() {
+            const locationBtn = document.getElementById('get-location-btn');
+            
+            if (!navigator.geolocation) {
+                showNotification('Geolocation is not supported by your browser', 'error');
+                return;
+            }
+            
+            locationBtn.disabled = true;
+            locationBtn.textContent = 'Getting location...';
+            
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    
+                    // Check if the user's location is within Canberra range
+                    if (!isWithinCanberraRange(lat, lng)) {
+                        showNotification(`Your current location is outside the ${MAX_DISTANCE_KM}km Canberra radius. Using Canberra center instead.`, 'warning');
+                        // Default to Canberra center if user is too far
+                        updateSelectedLocation(CANBERRA_LAT, CANBERRA_LNG);
+                    } else {
+                        // Update selected location marker and form inputs
+                        updateSelectedLocation(lat, lng);
+                    }
+                    
+                    // Center input map on valid location
+                    inputMap.setView([document.getElementById('location-lat').value, document.getElementById('location-lng').value], 15);
+                    
+                    locationBtn.disabled = false;
+                    locationBtn.textContent = 'Get My Location';
+                },
+                (error) => {
+                    showNotification('Unable to get location: ' + error.message + '. Using Canberra center instead.', 'error');
+                    // Default to Canberra center if geolocation fails
+                    updateSelectedLocation(CANBERRA_LAT, CANBERRA_LNG);
+                    locationBtn.disabled = false;
+                    locationBtn.textContent = 'Get My Location';
+                }
+            );
+        }
         
         // Function to show notifications instead of alerts
         function showNotification(message, type = 'success') {
@@ -95,6 +299,10 @@
             fetch('/api/locations')
                 .then(response => response.json())
                 .then(locations => {
+                    // Clear existing markers
+                    markers.forEach(marker => map.removeLayer(marker));
+                    markers = [];
+                    
                     locationsList.innerHTML = '';
                     
                     if (locations.length === 0) {
@@ -105,21 +313,26 @@
                     // Sort locations with newest first
                     locations.sort((a, b) => new Date(b.date_added) - new Date(a.date_added));
                     
-                    locations.forEach(location => {
-                        const date = new Date(location.date_added);
-                        const formattedDate = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
-                        
-                        const locationElement = document.createElement('div');
-                        locationElement.className = 'location-item';
-                        locationElement.innerHTML = `
-                            <h3>${location.name}</h3>
-                            <p>${location.description || 'No notes provided'}</p>
-                            <p class="date">Added on: ${formattedDate}</p>
-                            <p class="rating">Rating: ${location.rating}</p>
-                        `;
-                        
-                        locationsList.appendChild(locationElement);
+                    // Filter locations to only show last 48 hours
+                    const cutoffTime = new Date();
+                    cutoffTime.setHours(cutoffTime.getHours() - 48);
+                    
+                    const recentLocations = locations.filter(location => 
+                        new Date(location.date_added) > cutoffTime
+                    );
+                    
+                    if (recentLocations.length === 0) {
+                        locationsList.innerHTML = '<p>No locations added in the last 48 hours.</p>';
+                        return;
+                    }
+                    
+                    // Add markers for each location
+                    recentLocations.forEach(location => {
+                        addLocationToMap(location);
                     });
+                    
+                    // Update the list with summary
+                    locationsList.innerHTML = `<p>Showing ${recentLocations.length} locations from the last 48 hours. Click on markers to see details.</p>`;
                 })
                 .catch(error => {
                     console.error('Error loading locations:', error);
@@ -127,8 +340,42 @@
                 });
         }
         
+        // Add a location marker to the map
+        function addLocationToMap(location) {
+            // Rating determines color: 1=red, 2=orange, 3=yellow, 4=light green, 5=bright green
+            const colors = ['#ff0000', '#ff8800', '#ffff00', '#88ff00', '#00ff00'];
+            const color = colors[location.rating - 1] || '#ffaa00';
+            
+            const date = new Date(location.date_added);
+            const formattedDate = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+            
+            // Create marker with custom color
+            const markerIcon = L.divIcon({
+                className: 'custom-marker',
+                html: `<div style="background-color: ${color};" class="marker-pin"></div>`,
+                iconSize: [30, 30],
+                iconAnchor: [15, 30]
+            });
+            
+            if (location.latitude && location.longitude) {
+                const marker = L.marker([location.latitude, location.longitude], { icon: markerIcon }).addTo(map);
+                
+                // Create popup content
+                const popupContent = `
+                    <div class="popup-content">
+                        <p class="rating">Rating: ${location.rating} stars</p>
+                        <p>${location.description || 'No notes provided'}</p>
+                        <p class="date">Added on: ${formattedDate}</p>
+                    </div>
+                `;
+                
+                marker.bindPopup(popupContent);
+                markers.push(marker);
+            }
+        }
+        
         // Function to submit a new location
-        function submitLocation(name, description, rating) {
+        function submitLocation(latitude, longitude, description, rating) {
             const submitButton = document.getElementById('submit-button');
             submitButton.disabled = true;
             submitButton.textContent = 'Submitting...';
@@ -138,7 +385,7 @@
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ name, description, rating })
+                body: JSON.stringify({ latitude, longitude, description, rating })
             })
             .then(response => {
                 if (!response.ok) {
@@ -151,7 +398,6 @@
             })
             .then(data => {
                 // Clear form
-                document.getElementById('location-name').value = '';
                 document.getElementById('location-description').value = '';
                 document.getElementById('rating').value = 3;
                 document.getElementById('rating-value').textContent = 3;

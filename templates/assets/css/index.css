@@ -46,6 +46,7 @@ h2 {
     padding: 1.5rem;
     margin-bottom: 2rem;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    overflow: visible;
 }
 
 .form-group {
@@ -293,4 +294,143 @@ a:hover {
 
 .footer a:hover {
     text-decoration: underline;
+}
+
+/* Map styling */
+#map-container {
+    height: 500px; /* Increased height for better resolution */
+    width: 100%;
+    margin-bottom: 20px;
+    border-radius: 8px;
+    border: 1px solid #333;
+    z-index: 1;
+    /* Improved rendering for high-DPI displays */
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+    backface-visibility: hidden;
+}
+
+/* Fix for Leaflet tiles to render at higher resolution */
+.leaflet-container {
+    image-rendering: high-quality;
+}
+
+.leaflet-retina .leaflet-tile {
+    box-shadow: none !important;
+}
+
+/* Custom marker styling */
+.custom-marker {
+    text-align: center;
+}
+
+.marker-pin {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background-color: #ff0000;
+    border: 2px solid #fff;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+    cursor: pointer;
+}
+
+/* Coordinates input styling */
+.location-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.coordinates-group {
+    display: flex;
+    gap: 10px;
+}
+
+.coordinates-group input {
+    flex: 1;
+}
+
+#get-location-btn {
+    background-color: #333;
+    color: #fff;
+    border: 1px solid #444;
+    padding: 8px;
+    cursor: pointer;
+}
+
+#get-location-btn:hover {
+    background-color: #444;
+}
+
+/* Popup styling */
+.leaflet-popup-content-wrapper {
+    background-color: #222;
+    color: #fff;
+    border-radius: 5px;
+}
+
+.leaflet-popup-content {
+    margin: 10px;
+}
+
+.leaflet-popup-tip {
+    background-color: #222;
+}
+
+.popup-content {
+    padding: 5px;
+}
+
+.popup-content .rating {
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    margin-top: 0;
+    color: #ffd700;
+}
+
+.popup-content .date {
+    font-size: 0.8em;
+    color: #aaa;
+    margin-bottom: 0;
+}
+
+/* Modifications to existing styles to accommodate map */
+.card {
+    /* ...existing code... */
+    overflow: visible;
+}
+
+@media (max-width: 600px) {
+    /* ...existing code... */
+    
+    .coordinates-group {
+        flex-direction: column;
+    }
+    
+    #map-container {
+        height: 300px;
+    }
+}
+
+/* Hide the coordinate inputs */
+.hidden {
+    display: none !important;
+}
+
+/* Input map styling */
+#input-map-container {
+    height: 300px;
+    width: 100%;
+    margin-bottom: 10px;
+    border-radius: 8px;
+    border: 1px solid #333;
+    z-index: 1;
+}
+
+.location-help {
+    margin: 10px 0;
+    font-size: 0.9rem;
+    color: #adb5bd;
+    text-align: center;
 }

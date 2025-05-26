@@ -24,11 +24,12 @@ def load_locations():
     except (json.JSONDecodeError, FileNotFoundError):
         return []
 
-def save_location(name, description="", rating=None):
+def save_location(latitude, longitude, description="", rating=None):
     """Save a new kite location to the database
     
     Args:
-        name (str): Name of the kite flying location
+        latitude (float): Latitude coordinate
+        longitude (float): Longitude coordinate
         description (str, optional): Description of the location
         rating (int, optional): Rating from 1-5 stars
     
@@ -39,7 +40,8 @@ def save_location(name, description="", rating=None):
     
     # Create new location entry
     new_location = {
-        "name": name,
+        "latitude": float(latitude),
+        "longitude": float(longitude),
         "description": description,
         "rating": rating,
         "date_added": datetime.now().isoformat()
