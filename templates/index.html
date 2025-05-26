@@ -160,7 +160,7 @@
         // Initialize the map
         function initMap() {
             // Use the global Canberra coordinates
-            map = L.map('map-container').setView([CANBERRA_LAT, CANBERRA_LNG], 12);
+            map = L.map('map-container').setView([CANBERRA_LAT, CANBERRA_LNG], 11);
             
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -172,16 +172,8 @@
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             }).addTo(inputMap);
-            
-            // Draw a 50km radius circle around Canberra to visualize the allowed area
-            const canberraCircle = L.circle([CANBERRA_LAT, CANBERRA_LNG], {
-                color: 'blue',
-                fillColor: '#3388ff',
-                fillOpacity: 0.1,
-                radius: MAX_DISTANCE_KM * 1000 // Convert to meters
-            }).addTo(map);
 
-            // Add the same circle to the input map
+            // Add the Canberra circle to the input map
             const inputCanberraCircle = L.circle([CANBERRA_LAT, CANBERRA_LNG], {
                 color: 'blue',
                 fillColor: '#3388ff',
