@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kite Watch - Nathan.Woodburn/</title>
+    <title>Kite Watch</title>
     <link rel="icon" href="/assets/img/favicon.png" type="image/png">
     <link rel="stylesheet" href="/assets/css/index.css">
 </head>
@@ -46,6 +46,12 @@
             </div>
         </div>
     </div>
+
+    <footer class="footer">
+        <div class="footer-content">
+            <p>Created by <a href="https://nathan.woodburn.au" target="_blank">Nathan.Woodburn/</a></p>
+        </div>
+    </footer>
 
     <script>
         // Load locations when the page loads
@@ -169,48 +175,6 @@
             document.getElementById('rating-value').textContent = this.value;
         });
     </script>
-
-    <style>
-        .rating-container {
-            display: flex;
-            align-items: center;
-        }
-        
-        #rating {
-            flex: 1;
-            margin-right: 10px;
-        }
-        
-        #rating-value {
-            font-weight: bold;
-            width: 20px;
-            text-align: center;
-        }
-        
-        /* Notification styling */
-        .notification {
-            padding: 10px 15px;
-            border-radius: 4px;
-            margin-bottom: 15px;
-            transition: opacity 0.3s ease;
-        }
-        
-        .notification.success {
-            background-color: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        
-        .notification.error {
-            background-color: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-        
-        .notification.hidden {
-            display: none;
-        }
-    </style>
 </body>
 
 </html>
