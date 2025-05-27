@@ -312,10 +312,17 @@
                     const recentLocations = locations.filter(location => 
                         new Date(location.date_added) > cutoffTime
                     );
-                    
-                    if (recentLocations.length === 0) {
-                        locationsList.innerHTML = '<p>No locations added in the last 48 hours.</p>';
-                        return;
+
+                    // Update the list with summary
+                    locationsList.innerHTML = `<p>Showing ${recentLocations.length} locations from the last 48 hours. Click on markers to see details.</p>`;
+
+                    // If there are less than 10 recent locations, show the newest 10
+                    if (recentLocations.length < 10) {
+                        // Get the newest locations up to 10
+                        recentLocations.sort((a, b) => new Date(b.date_added) - new Date(a.date_added));
+                        recentLocations.splice(10);
+
+                        locationsList.innerHTML = `<p>Showing the newest ${recentLocations.length} locations.</p>`;
                     }
                     
                     // Add markers for each location
@@ -323,8 +330,7 @@
                         addLocationToMap(location);
                     });
                     
-                    // Update the list with summary
-                    locationsList.innerHTML = `<p>Showing ${recentLocations.length} locations from the last 48 hours. Click on markers to see details.</p>`;
+                    
                 })
                 .catch(error => {
                     console.error('Error loading locations:', error);
